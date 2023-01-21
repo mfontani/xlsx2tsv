@@ -19,7 +19,7 @@ jobs:
           GOOS: linux
           GOARCH: amd64
       - run: ./xlsx2tsv -help
-      - run: gzip --stdout xlsx2tsv > xlsx2stv-linux-amd64.gz
+      - run: gzip --stdout xlsx2tsv > xlsx2tsv-linux-amd64.gz
       # Build #2: windows/amd64
       - run: ./.dev/build-static.sh
         env:
