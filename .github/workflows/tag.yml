@@ -1,0 +1,104 @@
+---
+name: Release
+"on":
+  push:
+    tags:
+      - '*'
+
+jobs:
+
+  build:
+    runs-on: ubuntu-20.04
+    container: mfontani/gobuzz
+    steps:
+      - uses: actions/checkout@v3
+      - run: go mod download
+      # Build #1: linux/amd64
+      - run: ./.dev/build-static.sh
+        env:
+          GOOS: linux
+          GOARCH: amd64
+      - run: ./xlsx2tsv -help
+      - run: gzip --stdout xlsx2tsv > xlsx2stv-linux-amd64.gz
+      # Build #2: windows/amd64
+      - run: ./.dev/build-static.sh
+        env:
+          GOOS: windows
+          GOARCH: amd64
+      - run: mv xlsx2tsv xlsx2tsv.exe
+      # Build #3: darwin/amd64
+      - run: ./.dev/build-static.sh
+        env:
+          GOOS: darwin
+          GOARCH: amd64
+      - run: gzip --stdout xlsx2tsv > xlsx2tsv-darwin-amd64.gz
+      # Upload artifacts...
+      - uses: actions/upload-artifact@master
+        with:
+          name: xlsx2tsv-linux-amd64.gz
+          path: xlsx2tsv-linux-amd64.gz
+      - uses: actions/upload-artifact@master
+        with:
+          name: xlsx2tsv.exe
+          path: xlsx2tsv.exe
+      - uses: actions/upload-artifact@master
+        with:
+          name: xlsx2tsv-darwin-amd64.gz
+          path: xlsx2tsv-darwin-amd64.gz
+
+  release:
+    needs: [build]
+    runs-on: ubuntu-20.04
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url}}
+    steps:
+      - id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+
+  uploadgz:
+    needs: [release]
+    strategy:
+      matrix:
+        file:
+          - xlsx2tsv-linux-amd64.gz
+          - xlsx2tsv-darwin-amd64.gz
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/download-artifact@master
+        with:
+          name: ${{ matrix.file }}
+          path: .
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: ./${{ matrix.file }}
+          asset_name: ${{ matrix.file }}
+          asset_content_type: application/gzip
+
+  uploadexe:
+    needs: [release]
+    strategy:
+      matrix:
+        file:
+          - xlsx2tsv.exe
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/download-artifact@master
+        with:
+          name: ${{ matrix.file }}
+          path: .
+      - uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: ./${{ matrix.file }}
+          asset_name: ${{ matrix.file }}
+          asset_content_type: application/vnd.microsoft.portable-executable
